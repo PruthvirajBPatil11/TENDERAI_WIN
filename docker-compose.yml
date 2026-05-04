@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: tender-eval-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - DATABASE_URL=sqlite:///./tender_eval.db
+      - OCR_CONFIDENCE_THRESHOLD=0.80
+      - SEMANTIC_SIMILARITY_PASS_THRESHOLD=0.75
+      - SEMANTIC_SIMILARITY_REVIEW_THRESHOLD=0.50
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    depends_on:
+      - qdrant
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: tender-eval-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./frontend:/app/frontend
+      - ./data:/app/data
+    depends_on:
+      - app
+    command: streamlit run frontend/app.py
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: tender-eval-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+
+volumes:
+  qdrant_storage:

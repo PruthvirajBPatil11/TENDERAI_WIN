@@ -30,7 +30,7 @@ def render():
                 response = requests.post(
                     f"{API_BASE_URL}/tender/upload",
                     files=files,
-                    timeout=60
+                    timeout=300  # 5 minutes for OCR processing
                 )
                 
                 if response.status_code == 200:
@@ -99,7 +99,7 @@ def render():
                 try:
                     # Upload bidder files
                     files = [("files", f) for f in bidder_files]
-                    params = {
+                    data = {
                         "tender_id": tender_id,
                         "bidder_name": bidder_name
                     }
@@ -107,8 +107,8 @@ def render():
                     response = requests.post(
                         f"{API_BASE_URL}/bidder/upload",
                         files=files,
-                        params=params,
-                        timeout=60
+                        data=data,
+                        timeout=300  # 5 minutes for OCR processing
                     )
                     
                     if response.status_code == 200:

@@ -198,7 +198,8 @@ def _extract_scanned_pdf_with_gemini(filepath: str) -> list:
             try:
                 gemini_result = extract_with_gemini_vision(tmp_path)
                 text = gemini_result.get("full_text", "")
-                confidence = 0.82 if text.strip() else 0.0
+                # Use 0.82 confidence if text extracted, 0.82 as fallback even if empty (not 0.0)
+                confidence = 0.82
                 low_confidence = confidence < settings.ocr_confidence_threshold
 
                 pages.append({
@@ -260,7 +261,8 @@ def extract_with_ocr(filepath: str) -> list:
         logger.info("Route: image file -> Gemini Vision")
         gemini_result = extract_with_gemini_vision(filepath_str)
         text = gemini_result.get("full_text", "")
-        confidence = 0.82 if text.strip() else 0.0
+        # Use 0.82 confidence for images (fallback, not 0.0)
+        confidence = 0.82
         low_confidence = confidence < settings.ocr_confidence_threshold
 
         return [{

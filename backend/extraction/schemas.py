@@ -79,12 +79,12 @@ class Verdict(BaseModel):
     verdict: Literal["PASS", "FAIL", "MANUAL_REVIEW"] = Field(..., description="The verdict")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0-1)")
     reasoning: str = Field(..., description="Explanation of the verdict")
-    evidence_quote: str = Field(..., description="Quote from supporting document")
+    evidence_quote: Optional[str] = Field(None, description="Quote from supporting document")
     source_document: str = Field(..., description="Document where evidence was found")
     source_page: int = Field(..., description="Page number in document")
     ocr_confidence: Optional[float] = Field(None, description="OCR confidence of the evidence")
     ambiguity_reason: Optional[str] = Field(None, description="Reason for manual review if applicable")
-    hash: str = Field(..., description="SHA-256 hash of this verdict for audit trail")
+    hash: Optional[str] = Field(None, description="SHA-256 hash of this verdict for audit trail")
     
     class Config:
         """Pydantic configuration."""

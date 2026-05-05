@@ -70,8 +70,9 @@ def render():
                         
                         with col2:
                             st.write(f"**Reasoning:** {verdict['reasoning']}")
-                            st.write(f"**Evidence:** {verdict['evidence_quote']}")
-                            st.write(f"**Source:** {verdict['source_document']} (Page {verdict['source_page']})")
+                            if verdict.get('evidence_quote'):
+                                st.write(f"**Evidence:** {verdict['evidence_quote']}")
+                            st.write(f"**Source:** {verdict.get('source_document', 'unknown')} (Page {verdict.get('source_page', 1)})")
                             
                             if verdict.get('ocr_confidence'):
                                 st.write(f"**OCR Confidence:** {verdict['ocr_confidence']:.2%}")

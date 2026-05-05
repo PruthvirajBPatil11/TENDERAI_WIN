@@ -5,6 +5,7 @@ Criterion extraction using Groq LLM with structured JSON output.
 import json
 import logging
 import re
+import time
 from groq import Groq
 from backend.extraction.schemas import Criterion
 from backend.config import settings
@@ -87,16 +88,21 @@ def parse_criteria_blocks(text: str, section_name: str) -> list[Criterion]:
 def extract_criteria(section_text: str, section_name: str) -> list[Criterion]:
     """
     Extract eligibility criteria from a tender section using Groq LLM.
+    Includes retry logic for rate limiting.
     """
 
     if not section_text:
         return []
 
-    try:
-        messages = [
-            {
-                "role": "system",
-                "content": """You are an expert tender analyst. Your task is to extract EVERY SINGLE eligibility criterion.
+    max_retries = 3
+    retry_delay = 2  # Start with 2 seconds
+    
+    for attempt in range(max_retries):
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": """You are an expert tender analyst. Your task is to extract EVERY SINGLE eligibility criterion.
 
 Use ONLY this format - NO JSON ALLOWED:
 
@@ -118,10 +124,10 @@ INSTRUCTIONS:
 5. Count the criteria and verify you extracted them all
 6. If you see 5 criteria, output 5 blocks. If 3, output 3.
 7. CRITICAL: Do NOT skip any criteria. Return them all."""
-            },
-            {
-                "role": "user",
-                "content": f"""Extract ALL criteria. Count them first, then output each one.
+                },
+                {
+                    "role": "user",
+                    "content": f"""Extract ALL criteria. Count them first, then output each one.
 
 How many numbered criteria do you see in this text?
 List them:
@@ -135,37 +141,55 @@ Section Name: {section_name}
 
 Section Text:
 {section_text}"""
-            }
-        ]
+                }
+            ]
 
-        response = client.chat.completions.create(
-            model=settings.groq_model,
-            temperature=0,
-            max_tokens=4000,
-            messages=messages
-        )
+            response = client.chat.completions.create(
+                model=settings.groq_model,
+                temperature=0,
+                max_tokens=4000,
+                messages=messages
+            )
 
-        response_text = response.choices[0].message.content.strip()
+            response_text = response.choices[0].message.content.strip()
 
-        if not response_text:
-            logger.warning("Empty response from LLM")
+            if not response_text:
+                logger.warning("Empty response from LLM")
+                return []
+
+            # DEBUG: Print raw response
+            logger.info("=" * 80)
+            logger.info("RAW GROQ RESPONSE:")
+            logger.info("=" * 80)
+            logger.info(response_text)
+            logger.info("=" * 80)
+            logger.info(f"### CRITERION ### blocks found: {response_text.count('### CRITERION ###')}")
+            logger.info("=" * 80)
+
+            # Parse delimiter-based blocks instead of JSON
+            criteria = parse_criteria_blocks(response_text, section_name)
+
+            logger.info(f"Extracted {len(criteria)} criteria from {section_name}")
+            return criteria
+
+        except Exception as e:
+            error_msg = str(e).lower()
+            error_status = "429" in str(e) or "too many requests" in error_msg or "rate" in error_msg
+            
+            # Check for rate limit error
+            if error_status:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Rate limited. Waiting {wait_time}s before retry {attempt + 1}/{max_retries}: {str(e)}")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Rate limited and max retries ({max_retries}) exceeded")
+                    logger.error(f"Last error: {str(e)}")
+                    return []
+            
+            # For other errors, log and return empty
+            logger.error(f"Error extracting criteria from section {section_name}: {e}")
             return []
-
-        # DEBUG: Print raw response
-        logger.info("=" * 80)
-        logger.info("RAW GROQ RESPONSE:")
-        logger.info("=" * 80)
-        logger.info(response_text)
-        logger.info("=" * 80)
-        logger.info(f"### CRITERION ### blocks found: {response_text.count('### CRITERION ###')}")
-        logger.info("=" * 80)
-
-        # Parse delimiter-based blocks instead of JSON
-        criteria = parse_criteria_blocks(response_text, section_name)
-
-        logger.info(f"Extracted {len(criteria)} criteria from {section_name}")
-        return criteria
-
-    except Exception as e:
-        logger.error(f"Error extracting criteria from section {section_name}: {e}")
-        return []
+    
+    return []

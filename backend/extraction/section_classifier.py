@@ -22,16 +22,35 @@ def classify_sections(chunks: list[dict]) -> list[dict]:
     3. LLM failure → fallback keyword scan on text
     """
 
+    # Keywords that MUST be in section name to classify as eligibility
     eligibility_keywords = [
-        "eligibility", "qualification", "criteria", "requirement",
-        "eligible", "disqualification", "eligible bidder"
+        "eligibility",
+        "qualification",
+        "criteria",
+        "eligible bidder"
+    ]
+    
+    # Keywords that indicate NON-eligibility sections
+    non_eligibility_keywords = [
+        "technical requirement",
+        "financial requirement",
+        "general condition",
+        "scope of work",
+        "terms and condition"
     ]
 
     for chunk in chunks:
         section_name = chunk.get("section_name", "").lower()
         text = chunk.get("text", "").lower()
 
-        # 🔹 STEP 1: Strong keyword match (fast + reliable)
+        # 🔹 STEP 1: Check for non-eligibility sections first (negative match)
+        is_non_eligibility = any(kw in section_name for kw in non_eligibility_keywords)
+        if is_non_eligibility:
+            chunk["is_eligibility_section"] = False
+            logger.debug(f"[NON-ELIGIBILITY] '{chunk.get('section_name')}' → other")
+            continue
+
+        # 🔹 STEP 2: Strong keyword match (fast + reliable)
         keyword_hits = sum(1 for kw in eligibility_keywords if kw in section_name)
 
         if keyword_hits >= 1:
@@ -39,7 +58,7 @@ def classify_sections(chunks: list[dict]) -> list[dict]:
             logger.debug(f"[KEYWORD] '{chunk.get('section_name')}' → eligibility")
             continue
 
-        # 🔹 STEP 2: Try LLM only if needed
+        # 🔹 STEP 3: Try LLM only if needed
         try:
             response = client.chat.completions.create(
                 model=settings.groq_model,  # ⚠️ MUST be updated in config
@@ -52,7 +71,7 @@ def classify_sections(chunks: list[dict]) -> list[dict]:
 
 Answer ONLY 'yes' or 'no'.
 
-Is it about eligibility criteria, bidder qualification, or requirements?
+Is it about eligibility criteria, bidder qualification, or requirements for bidders to participate?
 
 Section Name: {chunk.get('section_name')}
 Section Text: {text[:400]}"""
@@ -70,7 +89,7 @@ Section Text: {text[:400]}"""
             )
 
         except Exception as e:
-            # 🔴 STEP 3: Fallback if LLM fails
+            # 🔴 STEP 4: Fallback if LLM fails
             logger.warning(f"Groq LLM failed: {e}")
 
             fallback_match = any(kw in text for kw in eligibility_keywords)

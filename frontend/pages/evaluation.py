@@ -29,11 +29,11 @@ def render():
             try:
                 response = requests.post(
                     f"{API_BASE_URL}/evaluate/",
-                    params={
+                    json={
                         "tender_id": tender_id,
                         "bidder_id": bidder_id
                     },
-                    timeout=120
+                    timeout=300  # 5 minutes for evaluation with OCR
                 )
                 
                 if response.status_code == 200:
@@ -97,7 +97,7 @@ def render():
             else:
                 return "background-color: #f39c12; color: white;"
         
-        styled_df = verdicts_df.style.applymap(highlight_verdict, subset=["Verdict"])
+        styled_df = verdicts_df.style.map(highlight_verdict, subset=["Verdict"])
         st.dataframe(styled_df, use_container_width=True)
         
         # Export to report

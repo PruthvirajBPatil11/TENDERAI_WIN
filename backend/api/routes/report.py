@@ -47,10 +47,10 @@ async def get_report(tender_id: str, bidder_id: str):
                 verdict=vr.verdict,
                 confidence=vr.confidence,
                 reasoning=vr.reasoning,
-                evidence_quote=vr.reasoning[:100],
-                source_document=vr.source_document,
-                source_page=vr.source_page,
-                hash=vr.verdict_hash
+                evidence_quote=vr.reasoning[:100] if vr.reasoning else None,
+                source_document=vr.source_document or "unknown",
+                source_page=vr.source_page or 1,
+                hash=vr.verdict_hash if hasattr(vr, 'verdict_hash') and vr.verdict_hash else None
             )
             verdicts.append(verdict)
         
@@ -95,10 +95,10 @@ async def get_report_pdf(tender_id: str, bidder_id: str):
                 verdict=vr.verdict,
                 confidence=vr.confidence,
                 reasoning=vr.reasoning,
-                evidence_quote=vr.reasoning[:100],
-                source_document=vr.source_document,
-                source_page=vr.source_page,
-                hash=vr.verdict_hash
+                evidence_quote=vr.reasoning[:100] if vr.reasoning else None,
+                source_document=vr.source_document or "unknown",
+                source_page=vr.source_page or 1,
+                hash=vr.verdict_hash if hasattr(vr, 'verdict_hash') and vr.verdict_hash else None
             )
             verdicts.append(verdict)
         

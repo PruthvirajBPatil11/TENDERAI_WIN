@@ -31,6 +31,22 @@ class Bidder(Base):
     submission_date = Column(DateTime, default=datetime.utcnow)
 
 
+class BidderDocument(Base):
+    """Bidder document with OCR confidence scores."""
+    __tablename__ = "bidder_documents"
+    
+    doc_id = Column(String, primary_key=True)
+    bidder_id = Column(String, ForeignKey("bidders.id"), nullable=False)
+    tender_id = Column(String, ForeignKey("tenders.id"), nullable=False)
+    filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    doc_type = Column(String)  # DIGITAL_PDF, SCANNED_PDF, IMAGE, DOCX
+    extracted_text = Column(Text)
+    ocr_confidence = Column(Float, default=0.99)  # Actual OCR confidence, not 0.5 default
+    extraction_method = Column(String)  # pdfplumber, ocr, ocr_fallback, docx, unknown
+    upload_date = Column(DateTime, default=datetime.utcnow)
+
+
 class CriterionRecord(Base):
     """Extracted criterion record."""
     __tablename__ = "criteria"

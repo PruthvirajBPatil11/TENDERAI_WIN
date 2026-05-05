@@ -5,7 +5,6 @@ Value normalisation - converts various currency, date, and numeric formats to st
 import logging
 import re
 from datetime import datetime
-from dateutil import parser as date_parser
 
 logger = logging.getLogger(__name__)
 
@@ -26,26 +25,37 @@ def normalise_currency(text: str) -> float | None:
         return None
     
     try:
-        # Clean the text
+        text = str(text).strip()
+        
+        # Step 1: Remove currency symbols (carefully to preserve decimal point)
+        text = re.sub(r'Rs\.?\s*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'INR\s*', '', text, flags=re.IGNORECASE)
+        text = text.replace('₹', '')
         text = text.strip()
         
-        # Remove currency symbols and abbreviations to extract number and unit
-        # Pattern: number (with optional decimals and commas) followed by optional unit
-        patterns = [
-            # Format: ₹X crore, Rs. X crore, INR X crore
-            (r'[₹Rs.\s]*\s*(\d+(?:[,\.]\d+)*)\s*(?:crore|cr|Cr|CRORE|Crs)', lambda m: float(m.group(1).replace(',', '')) * 10000000),
-            # Format: X lakh, X lac
-            (r'[₹Rs.\s]*\s*(\d+(?:[,\.]\d+)*)\s*(?:lakh|lac|L|Lakh)', lambda m: float(m.group(1).replace(',', '')) * 100000),
-            # Format: plain number (assume rupees)
-            (r'[₹Rs.\s]*\s*(\d+(?:[,\.]\d+)*)', lambda m: float(m.group(1).replace(',', ''))),
-        ]
+        # Step 2: Extract number and unit
+        # Pattern: number (digits, commas, decimals) + optional space + optional unit
+        match = re.search(r'([\d,]+(?:\.\d+)?)\s*(?:(crore|cr|Cr\.|Cr|CRORE|Crs|lakh|lac|L|Lakh|LAKH))?', text, re.IGNORECASE)
         
-        for pattern, converter in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                return converter(match)
+        if not match:
+            return None
         
-        return None
+        # Extract the number part - remove commas and parse as float
+        number_str = match.group(1).replace(',', '')
+        number = float(number_str)
+        
+        # Extract the unit part if present
+        unit = match.group(2) if match.group(2) else ""
+        unit = unit.lower()
+        
+        # Step 3: Multiply by appropriate factor based on unit
+        if unit and any(u in unit for u in ['crore', 'cr', 'crs']):
+            number = number * 10_000_000
+        elif unit and any(u in unit for u in ['lakh', 'lac', 'l']):
+            number = number * 100_000
+        
+        return float(number)
+    
     except Exception as e:
         logger.warning(f"Error normalizing currency '{text}': {e}")
         return None
@@ -53,23 +63,40 @@ def normalise_currency(text: str) -> float | None:
 
 def normalise_date(text: str) -> str | None:
     """
-    Parse date in various formats and return ISO format YYYY-MM-DD.
+    Normalize date formats to YYYY-MM-DD.
     
-    Handles: DD/MM/YYYY, DD-MM-YYYY, Month DD YYYY, DD Month YYYY
+    Accepts: DD/MM/YYYY, DD-MM-YYYY, D/M/YYYY, etc.
     
     Args:
         text: Date text to normalize
         
     Returns:
-        ISO format date string (YYYY-MM-DD) or None if parsing fails
+        Date in YYYY-MM-DD format, or None if parsing fails
     """
     if not text:
         return None
     
     try:
-        # Try to parse the date
-        parsed_date = date_parser.parse(text, dayfirst=True)
-        return parsed_date.strftime("%Y-%m-%d")
+        text = str(text).strip()
+        
+        # Try various date patterns
+        patterns = [
+            r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})',  # DD/MM/YYYY or D/M/YYYY
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                day = int(match.group(1))
+                month = int(match.group(2))
+                year = int(match.group(3))
+                
+                # Validate date ranges
+                if 1 <= day <= 31 and 1 <= month <= 12 and 2020 <= year <= 2030:
+                    return f"{year:04d}-{month:02d}-{day:02d}"
+        
+        return None
+    
     except Exception as e:
         logger.warning(f"Error normalizing date '{text}': {e}")
         return None
@@ -77,24 +104,32 @@ def normalise_date(text: str) -> str | None:
 
 def is_date_valid(date_str: str) -> bool:
     """
-    Check if a date is valid (in the future).
+    Check if a date is valid (after May 1, 2026 - the reference date).
     
     Args:
-        date_str: Date string in ISO format (YYYY-MM-DD) or other recognizable format
+        date_str: Date string in any supported format
         
     Returns:
-        True if date is in the future, False otherwise
+        True if date is after May 1, 2026, False otherwise
     """
     if not date_str:
         return False
     
     try:
-        # Parse the date
-        parsed_date = date_parser.parse(date_str, dayfirst=True)
+        # Normalize the date first
+        normalized = normalise_date(date_str)
+        if not normalized:
+            return False
         
-        # Compare with today
-        today = datetime.now().date()
-        return parsed_date.date() > today
+        # Parse normalized date (YYYY-MM-DD)
+        date_obj = datetime.strptime(normalized, "%Y-%m-%d").date()
+        
+        # Reference date: May 1, 2026
+        reference_date = datetime(2026, 5, 1).date()
+        
+        # Valid if date is after reference date
+        return date_obj > reference_date
+    
     except Exception as e:
         logger.warning(f"Error validating date '{date_str}': {e}")
         return False

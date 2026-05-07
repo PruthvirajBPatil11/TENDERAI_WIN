@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: tender-eval-backend
+    env: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: GROQ_API_KEY
+        scope: build
+      - key: GEMINI_API_KEY
+        scope: build
+      - key: QDRANT_HOST
+        value: tender-eval-qdrant
+      - key: QDRANT_PORT
+        value: 6333
+      - key: DATABASE_URL
+        value: postgresql://$DATABASE_USER:$DATABASE_PASSWORD@$DATABASE_HOST:5432/$DATABASE_NAME
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /docs
+
+  - type: web
+    name: tender-eval-frontend
+    env: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: "streamlit run frontend/app.py --server.port=$PORT --server.address=0.0.0.0"
+    envVars:
+      - key: GROQ_API_KEY
+        scope: build
+      - key: GEMINI_API_KEY
+        scope: build
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: "true"
+      - key: STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION
+        value: "false"
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  - type: postgres
+    name: tender-eval-db
+    plan: standard

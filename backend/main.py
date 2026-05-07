@@ -3,19 +3,42 @@ FastAPI application entry point.
 """
 
 import logging
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from backend.config import settings
-from backend.database.db import init_db
-from backend.vector_store.qdrant_client import init_collection
-from backend.api.routes import tender, bidder, evaluate, report
+import sys
 
-# Configure logging
+# Configure logging FIRST
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
+
+try:
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from backend.config import settings
+    logger.info("Config loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load config: {e}", exc_info=True)
+    settings = None
+
+try:
+    from backend.database.db import init_db
+except Exception as e:
+    logger.warning(f"Could not import init_db: {e}")
+    init_db = None
+
+try:
+    from backend.vector_store.qdrant_client import init_collection
+except Exception as e:
+    logger.warning(f"Could not import init_collection: {e}")
+    init_collection = None
+
+try:
+    from backend.api.routes import tender, bidder, evaluate, report
+except Exception as e:
+    logger.error(f"Failed to import routes: {e}", exc_info=True)
+    tender = bidder = evaluate = report = None
 
 # Create FastAPI app
 app = FastAPI(
@@ -33,28 +56,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include route modules
-app.include_router(tender.router)
-app.include_router(bidder.router)
-app.include_router(evaluate.router)
-app.include_router(report.router)
+# Include route modules safely
+if tender:
+    app.include_router(tender.router)
+if bidder:
+    app.include_router(bidder.router)
+if evaluate:
+    app.include_router(evaluate.router)
+if report:
+    app.include_router(report.router)
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and vector store on startup."""
-    logger.info("Starting TenderEval AI application")
-    try:
-        init_db()
-        logger.info("Database initialized")
-    except Exception as e:
-        logger.warning(f"Error initializing database: {e}")
+    logger.info("Starting TensorEval AI application")
     
-    try:
-        init_collection()
-        logger.info("Vector store initialized")
-    except Exception as e:
-        logger.warning(f"Error initializing vector store: {e}")
+    if init_db:
+        try:
+            init_db()
+            logger.info("Database initialized")
+        except Exception as e:
+            logger.warning(f"Error initializing database: {e}", exc_info=True)
+    else:
+        logger.warning("Database initialization not available")
+    
+    if init_collection:
+        try:
+            init_collection()
+            logger.info("Vector store initialized")
+        except Exception as e:
+            logger.warning(f"Error initializing vector store: {e}", exc_info=True)
+    else:
+        logger.warning("Vector store initialization not available")
+    
+    logger.info("Application startup complete")
 
 
 @app.on_event("shutdown")

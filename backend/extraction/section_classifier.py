@@ -8,8 +8,15 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Initialize Groq client
-client = Groq(api_key=settings.groq_api_key)
+# Lazy initialization - create client only when needed
+_client = None
+
+def get_client():
+    """Get or create Groq client (lazy initialization)."""
+    global _client
+    if _client is None:
+        _client = Groq(api_key=settings.groq_api_key)
+    return _client
 
 
 def classify_sections(chunks: list[dict]) -> list[dict]:
@@ -60,7 +67,7 @@ def classify_sections(chunks: list[dict]) -> list[dict]:
 
         # 🔹 STEP 3: Try LLM only if needed
         try:
-            response = client.chat.completions.create(
+            response = get_client().chat.completions.create(
                 model=settings.groq_model,  # ⚠️ MUST be updated in config
                 max_tokens=10,
                 temperature=0,

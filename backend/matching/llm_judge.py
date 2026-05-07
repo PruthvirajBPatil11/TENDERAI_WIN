@@ -13,8 +13,15 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Initialize Groq client at module level
-client = Groq(api_key=settings.groq_api_key)
+# Lazy initialization - create client only when needed
+_client = None
+
+def get_client():
+    """Get or create Groq client (lazy initialization)."""
+    global _client
+    if _client is None:
+        _client = Groq(api_key=settings.groq_api_key)
+    return _client
 
 
 def parse_verdict_block(text: str) -> dict:
@@ -91,7 +98,7 @@ Make your verdict based ONLY on the information provided."""
             }
         ]
 
-        message = client.chat.completions.create(
+        message = get_client().chat.completions.create(
             model=settings.groq_model,
             temperature=0,
             max_tokens=800,

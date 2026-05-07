@@ -12,8 +12,15 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Initialize Groq client
-client = Groq(api_key=settings.groq_api_key)
+# Lazy initialization - create client only when needed
+_client = None
+
+def get_client():
+    """Get or create Groq client (lazy initialization)."""
+    global _client
+    if _client is None:
+        _client = Groq(api_key=settings.groq_api_key)
+    return _client
 
 
 def parse_criteria_blocks(text: str, section_name: str) -> list[Criterion]:
@@ -144,7 +151,7 @@ Section Text:
                 }
             ]
 
-            response = client.chat.completions.create(
+            response = get_client().chat.completions.create(
                 model=settings.groq_model,
                 temperature=0,
                 max_tokens=4000,
